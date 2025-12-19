@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/orc-analytics/orca/core/protobufs/go"
+	pb "github.com/orc-analytics/core/protobufs/go"
 
-	"github.com/orc-analytics/orca/cli/stub"
+	"github.com/orc-analytics/cli/stub"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

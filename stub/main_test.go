@@ -26,7 +26,6 @@ func TestPythonTemplateGeneration(t *testing.T) {
 				Version:       "1.1.0",
 				WindowVarName: "FastWindow",
 				ReturnType:    "StructResult",
-				MetadataKeys:  []AlgoMetadata{{VarName: "bus_id", KeyName: "bus_id"}},
 			},
 		},
 	}
@@ -67,22 +66,22 @@ func TestPythonTemplateGeneration_WithReturnTypes(t *testing.T) {
 		Algorithms: []Algorithm{
 			{
 				Name:          "CalcAverage",
-				ReturnType:    pythonValueReturnType,
+				ReturnType:    valueReturnType,
 				WindowVarName: "Every30Second",
 			},
 			{
 				Name:          "GetBatch",
-				ReturnType:    pythonStructReturnType,
+				ReturnType:    structReturnType,
 				WindowVarName: "Every30Second",
 			},
 			{
 				Name:          "SendResult",
-				ReturnType:    pythonNoneReturnType,
+				ReturnType:    noneReturnType,
 				WindowVarName: "Every30Second",
 			},
 			{
 				Name:          "CalcDist",
-				ReturnType:    pythonArrayReturnType,
+				ReturnType:    arrayReturnType,
 				WindowVarName: "Every30Second",
 			},
 		},

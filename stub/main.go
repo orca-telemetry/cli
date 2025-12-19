@@ -2,11 +2,12 @@ package stub
 
 import (
 	"embed"
+	"fmt"
 	"os"
 	"path/filepath"
 	"text/template"
 
-	pb "github.com/orc-analytics/orca/core/protobufs/go"
+	pb "github.com/orc-analytics/core/protobufs/go"
 )
 
 const PYTHON_STUB_FILE = "stub_templates/processor.py.tmpl"
@@ -16,13 +17,13 @@ var templateFS embed.FS
 
 var pythonTemplate *template.Template
 
-type pythonReturnType string
+type ReturnType string
 
 const (
-	pythonStructReturnType pythonReturnType = "StructResult"
-	pythonValueReturnType  pythonReturnType = "ValueResult"
-	pythonNoneReturnType   pythonReturnType = "NoneResult"
-	pythonArrayReturnType  pythonReturnType = "ArrayResult"
+	structReturnType ReturnType = "StructResult"
+	valueReturnType  ReturnType = "ValueResult"
+	noneReturnType   ReturnType = "NoneResult"
+	arrayReturnType  ReturnType = "ArrayResult"
 )
 
 func init() {
@@ -63,17 +64,11 @@ type Window struct {
 	MetadataVarNames []string
 }
 
-type AlgoMetadata struct {
-	VarName string
-	KeyName string
-}
-
 type Algorithm struct {
 	Name          string
 	Version       string
 	WindowVarName string
-	ReturnType    pythonReturnType
-	MetadataKeys  []AlgoMetadata
+	ReturnType    ReturnType
 }
 
 type ProcessorData struct {
@@ -83,11 +78,102 @@ type ProcessorData struct {
 	Algorithms []Algorithm
 }
 
-func mapInternalStateToProcessorData(internalState *pb.InternalState) *ProcessorData {
+type AllProcessors struct {
+	Processors []ProcessorData
+}
 
+func mapInternalStateToTmpl(internalState *pb.InternalState) (error, *AllProcessors) {
+	processorDatas := make([]ProcessorData, len(internalState.GetProcessors()))
+
+	for ii, proc := range internalState.GetProcessors() {
+		supportedWindowTypes := make(map[string]*Window)
+		supportedWindowMetadataFields := make(map[string]*Metadata)
+		supportedAlgorithms := make([]Algorithm, len(proc.GetSupportedAlgorithms()))
+
+		for jj, algo := range proc.GetSupportedAlgorithms() {
+			windowKey := fmt.Sprintf("%v_%v", algo.GetWindowType().GetName(), algo.GetWindowType().GetVersion())
+
+			// Pack all the window metadata fields
+			metadataVarNamesForWindow := make([]string, len(algo.GetWindowType().GetMetadataFields()))
+			for kk, metadata := range algo.GetWindowType().GetMetadataFields() {
+				metadataVarName := fmt.Sprintf("%v_stub", metadata.GetName())
+
+				if _, ok := supportedWindowMetadataFields[metadata.GetName()]; !ok {
+					supportedWindowMetadataFields[metadata.GetName()] = &Metadata{
+						VarName:     metadataVarName,
+						KeyName:     metadata.GetName(),
+						Description: metadata.GetDescription(),
+					}
+				}
+				metadataVarNamesForWindow[kk] = metadataVarName
+			}
+
+			// Pack all the window types
+			if _, ok := supportedWindowTypes[windowKey]; !ok {
+				supportedWindowTypes[windowKey] = &Window{
+					VarName:          fmt.Sprintf("%v_stub", windowKey),
+					Name:             algo.GetWindowType().GetName(),
+					Version:          algo.GetWindowType().GetVersion(),
+					Description:      algo.GetWindowType().GetDescription(),
+					MetadataVarNames: metadataVarNamesForWindow,
+				}
+			}
+
+			var algoReturnType ReturnType
+			switch algo.GetResultType() {
+			case pb.ResultType_ARRAY:
+				algoReturnType = arrayReturnType
+			case pb.ResultType_STRUCT:
+				algoReturnType = structReturnType
+			case pb.ResultType_VALUE:
+				algoReturnType = valueReturnType
+			case pb.ResultType_NONE:
+				algoReturnType = noneReturnType
+			case pb.ResultType_NOT_SPECIFIED:
+				return fmt.Errorf(
+					"result type not specified for algorithm %v_%v on processor %v_%v",
+					algo.GetName(),
+					algo.GetVersion(),
+					proc.GetName(),
+					proc.GetRuntime(),
+				), nil
+			}
+
+			supportedAlgorithms[jj] = Algorithm{
+				Name:          algo.GetName(),
+				Version:       algo.GetVersion(),
+				ReturnType:    algoReturnType,
+				WindowVarName: fmt.Sprintf("%v_stub", algo.GetWindowType().GetName()),
+			}
+		}
+
+		allWindowTypes := make([]Window, 0, len(supportedWindowTypes))
+		for _, windowTypePtr := range supportedWindowTypes {
+			allWindowTypes = append(allWindowTypes, *windowTypePtr)
+		}
+
+		allMetadataFields := make([]Metadata, 0, len(supportedWindowMetadataFields))
+		for _, metadataPtr := range supportedWindowMetadataFields {
+			allMetadataFields = append(allMetadataFields, *metadataPtr)
+		}
+
+		processorDatas[ii] = ProcessorData{
+			Name:       proc.GetName(),
+			Metadata:   allMetadataFields,
+			Windows:    allWindowTypes,
+			Algorithms: supportedAlgorithms,
+		}
+	}
+
+	return nil, &AllProcessors{Processors: processorDatas}
 }
 
 func GeneratePythonStub(internalState *pb.InternalState, outDir string) error {
+
+	err, processorTmpl := mapInternalStateToTmpl(internalState)
+	if err != nil {
+		return fmt.Errorf("could not parse internal state: %w", err)
+	}
 
 	outFile, err := os.Create("orca_stub.py")
 
@@ -102,7 +188,7 @@ func GeneratePythonStub(internalState *pb.InternalState, outDir string) error {
 	if err != nil && !os.IsExist(err) {
 		return (err)
 	}
-	if err := pythonTemplate.Execute(outFile, internalState); err != nil {
+	if err := pythonTemplate.Execute(outFile, processorTmpl); err != nil {
 		panic(err)
 	}
 	println("Generated system_state.py successfully!")

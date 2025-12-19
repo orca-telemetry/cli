@@ -25,16 +25,16 @@ BUILD = go build -ldflags "$(LDFLAGS)" -o
 build_all: linux windows mac_arm mac_intel
 
 linux:
-	cd GOOS=linux GOARCH=amd64 $(BUILD) ../build/$(BINARY_NAME)-amd64-cli-linux .
+	GOOS=linux GOARCH=amd64 $(BUILD) ./build/$(BINARY_NAME)-amd64-cli-linux .
 
 windows:
-	cd GOOS=windows GOARCH=amd64 $(BUILD) ../build/$(BINARY_NAME)-amd64-cli-windows.exe .
+	GOOS=windows GOARCH=amd64 $(BUILD) ./build/$(BINARY_NAME)-amd64-cli-windows.exe .
 
 mac_arm:
-	cd GOOS=darwin GOARCH=arm64 $(BUILD) ../build/$(BINARY_NAME)-amd64-cli-mac-arm .
+	GOOS=darwin GOARCH=arm64 $(BUILD) ./build/$(BINARY_NAME)-amd64-cli-mac-arm .
 
 mac_intel:
-	cd GOOS=darwin GOARCH=amd64 $(BUILD) ../build/$(BINARY_NAME)-amd64-cli-mac-intel .
+	GOOS=darwin GOARCH=amd64 $(BUILD) ./build/$(BINARY_NAME)-amd64-cli-mac-intel .
 
 clean:
 	rm -rf build/
