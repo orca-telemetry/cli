@@ -7,7 +7,9 @@ from orca_python import (
     MetadataField,
     ExecutionParams,
 )
+{{ range .Processors }}
 
+# --- Processor Start ---
 proc = Processor(
     name="{{ .Name }}",
     _stub=True
@@ -53,3 +55,6 @@ def {{ .Name | ToSnakeCase }}(params: ExecutionParams) -> {{ .ReturnType }}:
     return None # Fallback
     {{end }}
 {{ end }}
+
+# --- Processor End ---
+{{end}}
