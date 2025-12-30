@@ -34,3 +34,5 @@ cli
 local_storage
 __pycache__
 build/
+.orca/
+orca.json
