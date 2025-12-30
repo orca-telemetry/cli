@@ -17,21 +17,39 @@ import (
 )
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Orca CLI\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "  orca <command> [options]\n\n")
+		fmt.Fprintf(os.Stderr, "Commands:\n")
+		fmt.Fprintf(os.Stderr, "  start    Start the Orca stack\n")
+		fmt.Fprintf(os.Stderr, "  stop     Stop all Orca containers\n")
+		fmt.Fprintf(os.Stderr, "  status   Show status of Orca components\n")
+		fmt.Fprintf(os.Stderr, "  destroy  Delete all Orca resources\n")
+		fmt.Fprintf(os.Stderr, "  init     Initialize orca.json configuration\n")
+		fmt.Fprintf(os.Stderr, "  sync     Sync Orca registry data\n")
+		fmt.Fprintf(os.Stderr, "  help     Show help information\n\n")
+		fmt.Fprintf(os.Stderr, "Examples:\n")
+		fmt.Fprintf(os.Stderr, "  orca start\n")
+		fmt.Fprintf(os.Stderr, "  orca sync -out ./data\n")
+		fmt.Fprintf(os.Stderr, "  orca init -name myproject\n\n")
+		fmt.Fprintf(os.Stderr, "For more information on a command, run:\n")
+		fmt.Fprintf(os.Stderr, "  orca <command> help / -h\n")
+		flag.PrintDefaults()
+	}
+
 	// subcommands
 	startCmd := flag.NewFlagSet("start", flag.ExitOnError)
 	stopCmd := flag.NewFlagSet("stop", flag.ExitOnError)
 	statusCmd := flag.NewFlagSet("status", flag.ExitOnError)
 	destroyCmd := flag.NewFlagSet("destroy", flag.ExitOnError)
-	syncCmd := flag.NewFlagSet("syncCmd", flag.ExitOnError)
+	syncCmd := flag.NewFlagSet("sync", flag.ExitOnError)
 	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
-
-	// TODO: make this a `--help` flag that can be used at any point throughout the process
-	helpCmd := flag.NewFlagSet("help", flag.ExitOnError)
 
 	// check if a subcommand is provided
 	if len(os.Args) < 2 {
 		fmt.Println()
-		showHelp()
+		flag.Usage()
 		fmt.Println()
 		os.Exit(1)
 	}
@@ -40,9 +58,27 @@ func main() {
 	switch os.Args[1] {
 
 	case "start":
-		checkDockerInstalled()
+		startCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca start\n\n")
+			fmt.Fprintf(os.Stderr, "Start the Orca stack (Postgres, Redis, and Orca services)\n")
+		}
 
 		startCmd.Parse(os.Args[2:])
+
+		if startCmd.NArg() > 0 && (startCmd.Arg(0) == "help" || startCmd.Arg(0) == "-h") {
+			startCmd.Usage()
+			os.Exit(0)
+		}
+
+		if startCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", startCmd.Arg(0))))
+			fmt.Println("Run 'orca start help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
+
+		checkDockerInstalled()
 
 		fmt.Println()
 		networkName := createNetworkIfNotExists()
@@ -69,37 +105,117 @@ func main() {
 		startOrca(networkName)
 		fmt.Println()
 
-		fmt.Println(renderSuccess("✅ Orca stack started successfully."))
+		fmt.Println(renderSuccess(" Orca stack started successfully."))
 		fmt.Println()
 
 	case "stop":
-		checkDockerInstalled()
+		stopCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca stop\n\n")
+			fmt.Fprintf(os.Stderr, "Stop all running Orca containers\n")
+		}
 
 		stopCmd.Parse(os.Args[2:])
+
+		if stopCmd.NArg() > 0 && (stopCmd.Arg(0) == "help" || stopCmd.Arg(0) == "-h") {
+			stopCmd.Usage()
+			os.Exit(0)
+		}
+
+		if stopCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", stopCmd.Arg(0))))
+			fmt.Println("Run 'orca stop help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
+
+		checkDockerInstalled()
 
 		fmt.Println()
 		stopContainers()
 
 		fmt.Println()
-		fmt.Println(renderSuccess("✅ All containers stopped."))
+		fmt.Println(renderSuccess(" All containers stopped."))
 		fmt.Println()
 
 	case "status":
-		checkDockerInstalled()
+		statusCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca status\n\n")
+			fmt.Fprintf(os.Stderr, "Show the status of all Orca components\n")
+		}
+
 		statusCmd.Parse(os.Args[2:])
+
+		if statusCmd.NArg() > 0 && (statusCmd.Arg(0) == "help" || statusCmd.Arg(0) == "-h") {
+			statusCmd.Usage()
+			os.Exit(0)
+		}
+
+		if statusCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", statusCmd.Arg(0))))
+			fmt.Println("Run 'orca status help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
+
+		checkDockerInstalled()
 
 		fmt.Println()
 		showStatus()
 		fmt.Println()
 
 	case "destroy":
-		checkDockerInstalled()
+		destroyCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca destroy\n\n")
+			fmt.Fprintf(os.Stderr, "Delete all Orca resources (containers, volumes, networks)\n")
+		}
+
 		destroyCmd.Parse(os.Args[2:])
+
+		if destroyCmd.NArg() > 0 && (destroyCmd.Arg(0) == "help" || destroyCmd.Arg(0) == "-h") {
+			destroyCmd.Usage()
+			os.Exit(0)
+		}
+
+		if destroyCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", destroyCmd.Arg(0))))
+			fmt.Println("Run 'orca destroy help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
+
+		checkDockerInstalled()
 		fmt.Println()
 		destroy()
 		fmt.Println()
 
 	case "init":
+		projectNameFlag := initCmd.String("name", "", "Project name (defaults to current directory name)")
+
+		initCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca init [options]\n\n")
+			fmt.Fprintf(os.Stderr, "Initialize orca.json configuration file\n\n")
+			fmt.Fprintf(os.Stderr, "Options:\n")
+			initCmd.PrintDefaults()
+		}
+
+		initCmd.Parse(os.Args[2:])
+
+		if initCmd.NArg() > 0 && (initCmd.Arg(0) == "help" || initCmd.Arg(0) == "-h") {
+			initCmd.Usage()
+			os.Exit(0)
+		}
+
+		if initCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", initCmd.Arg(0))))
+			fmt.Println("Run 'orca init help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
+
 		type OrcaConfigFile struct {
 			ProjectName          string `json:"projectName"`
 			OrcaConnectionString string `json:"connectionString"`
@@ -121,7 +237,6 @@ func main() {
 			os.Exit(1)
 		}
 		var projectName string
-		projectNameFlag := initCmd.String("name", "", "The name of the SDKs repository. Advanced ML")
 		if *projectNameFlag != "" {
 			projectName = *projectNameFlag
 		} else {
@@ -135,7 +250,6 @@ func main() {
 		}
 
 		newConfig := OrcaConfigFile{
-
 			ProjectName:          projectName,
 			OrcaConnectionString: fmt.Sprintf("localhost:%s", orcaPort),
 			ProcessorPort:        processorPort,
@@ -190,14 +304,36 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println("orca.json created successfully!")
-		fmt.Printf("Project Name: %s\n", newConfig.ProjectName)
-		fmt.Printf("Connection String: %s\n", newConfig.OrcaConnectionString)
-		fmt.Printf("Processor Port: %d\n", newConfig.ProcessorPort)
+		fmt.Println(successStyle.Render("orca.json created successfully!"))
+		fmt.Printf("Project name: %s\n", newConfig.ProjectName)
+		fmt.Printf("Orca connection string: %s\n", newConfig.OrcaConnectionString)
+		fmt.Printf("Processor port: %d\n", newConfig.ProcessorPort)
 
 	case "sync":
-		outDir := syncCmd.String("out", "./.orca", "Output directory for Orca registry data. Defaults to '.orca'")
-		orcaConnStr := syncCmd.String("connStr", "", "Orca connection string. Defaults to internal Orca service")
+		outDir := syncCmd.String("out", "./.orca", "Output directory for Orca registry data")
+		orcaConnStr := syncCmd.String("connStr", "", "Orca connection string (defaults to local Orca)")
+
+		syncCmd.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage: orca sync [options]\n\n")
+			fmt.Fprintf(os.Stderr, "Sync Orca registry data to local directory\n\n")
+			fmt.Fprintf(os.Stderr, "Options:\n")
+			syncCmd.PrintDefaults()
+		}
+
+		syncCmd.Parse(os.Args[2:])
+
+		if syncCmd.NArg() > 0 && (syncCmd.Arg(0) == "help" || syncCmd.Arg(0) == "-h") {
+			syncCmd.Usage()
+			os.Exit(0)
+		}
+
+		if syncCmd.NArg() > 0 {
+			fmt.Println()
+			fmt.Println(renderError(fmt.Sprintf("Unknown argument: %s", syncCmd.Arg(0))))
+			fmt.Println("Run 'orca sync help' for usage information.")
+			fmt.Println()
+			os.Exit(1)
+		}
 
 		var connStr string
 		if *orcaConnStr == "" {
@@ -248,22 +384,23 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println(renderSuccess(fmt.Sprintf("✅ registry data generated successfully in %s", filepath.Join(*outDir, "registry.json"))))
+		fmt.Println(renderSuccess(fmt.Sprintf("registry data generated successfully in %s", filepath.Join(*outDir, "registry.json"))))
 
 	case "help":
-		helpCmd.Parse(os.Args[2:])
 		fmt.Println()
-		if helpCmd.NArg() > 0 {
-			showCommandHelp(os.Args[2])
-		} else {
-			showHelp()
-		}
+		flag.Usage()
 		fmt.Println()
+		os.Exit(0)
+	case "-h":
+		fmt.Println()
+		flag.Usage()
+		fmt.Println()
+		os.Exit(0)
 
 	default:
 		fmt.Println()
 		fmt.Println(renderError(fmt.Sprintf("Unknown subcommand: %s", os.Args[1])))
-		fmt.Println(renderInfo("Run 'help' for usage information."))
+		fmt.Println("Run 'orca help' for usage information.")
 		fmt.Println()
 		os.Exit(1)
 	}

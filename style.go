@@ -10,39 +10,19 @@ import (
 )
 
 var (
-	// Muted violet headline
-	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#a387c4")). // soft lavender
-			Bold(true).
-			Underline(true)
-
-	// Soft blue subheadings
-	subHeaderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7aa2f7")). // muted periwinkle
-			Bold(true)
-
 	// Gentle green for success
 	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#9ece6a")) // desaturated lime
+			Foreground(lipgloss.Color("#9ece6a"))
 
 	// Subtle gold for warnings
 	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#e0af68")). // sandy gold
+			Foreground(lipgloss.Color("#e0af68")).
 			Bold(true)
 
 	// Muted red for errors
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#f7768e")). // rosy red
+			Foreground(lipgloss.Color("#f7768e")).
 			Bold(true)
-
-	// Cool teal for info messages
-	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7dcfff")) // soft cyan
-
-	// Gray prefix symbol
-	prefixStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#565f89")). // pastel gray-blue
-			SetString("→")
 )
 
 func init() {
@@ -116,44 +96,4 @@ func renderSuccess(text string) string {
 
 func renderError(text string) string {
 	return safeRender(errorStyle, text)
-}
-
-func renderWarning(text string) string {
-	return safeRender(warningStyle, text)
-}
-
-func renderInfo(text string) string {
-	return safeRender(infoStyle, text)
-}
-
-func renderHeader(text string) string {
-	return safeRender(headerStyle, text)
-}
-
-func renderSubHeader(text string) string {
-	return safeRender(subHeaderStyle, text)
-}
-
-// debugColorProfile prints current color profile information for debugging
-func debugColorProfile() {
-	fmt.Printf("TERM: %s\n", os.Getenv("TERM"))
-	fmt.Printf("COLORTERM: %s\n", os.Getenv("COLORTERM"))
-	fmt.Printf("NO_COLOR: %s\n", os.Getenv("NO_COLOR"))
-	fmt.Printf("CI: %s\n", os.Getenv("CI"))
-
-	profile := lipgloss.ColorProfile()
-	var profileName string
-	switch profile {
-	case termenv.Ascii:
-		profileName = "Ascii (no colors)"
-	case termenv.ANSI:
-		profileName = "ANSI (16 colors)"
-	case termenv.ANSI256:
-		profileName = "ANSI256 (256 colors)"
-	case termenv.TrueColor:
-		profileName = "TrueColor (24-bit)"
-	default:
-		profileName = "Unknown"
-	}
-	fmt.Printf("Color Profile: %s\n", profileName)
 }
