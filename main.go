@@ -236,7 +236,7 @@ func main() {
 			fmt.Println(renderError(fmt.Sprintf("Issue contacting Orca: %v", err)))
 			os.Exit(1)
 		}
-		data, err := json.MarshalIndent(internalState, "", " ")
+		data, err := json.MarshalIndent(internalState, "", "    ")
 		if err != nil {
 			fmt.Println(renderError(fmt.Sprintf("Failed to marshal configuration: %v", err)))
 			os.Exit(1)
