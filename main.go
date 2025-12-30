@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orc-analytics/cli/stub"
 	pb "github.com/orc-analytics/core/protobufs/go"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -292,7 +296,7 @@ func main() {
 			}
 		}
 
-		data, err := json.Marshal(&newConfig)
+		data, err := json.MarshalIndent(&newConfig, "", "    ")
 		if err != nil {
 			fmt.Println(renderError(fmt.Sprintf("Failed to marshal configuration: %v", err)))
 			os.Exit(1)
@@ -310,8 +314,11 @@ func main() {
 		fmt.Printf("Processor port: %d\n", newConfig.ProcessorPort)
 
 	case "sync":
-		outDir := syncCmd.String("out", "./.orca", "Output directory for Orca registry data")
+		outDir := syncCmd.String("out", ".orca", "Output directory for Orca registry data")
 		orcaConnStr := syncCmd.String("connStr", "", "Orca connection string (defaults to local Orca)")
+		tgtSdk := syncCmd.String("sdk", "", "The SDK to generate type stubs for - python|go|typescript|zig|rust (defaults to inferring from the environment)")
+		secure := syncCmd.Bool("secure", false, "Set to connect to Orca core with System Default Root CA credentials (via TLS). Only use when using a custom Orca connection string that supports TLS")
+		caCert := syncCmd.String("caCert", "", "Path to custom CA certificate file (PEM format) for TLS verification")
 
 		syncCmd.Usage = func() {
 			fmt.Fprintf(os.Stderr, "Usage: orca sync [options]\n\n")
@@ -335,6 +342,66 @@ func main() {
 			os.Exit(1)
 		}
 
+		type SDKType string
+
+		const (
+			SDKPython     SDKType = "python"
+			SDKGo         SDKType = "go"
+			SDKTypeScript SDKType = "typescript"
+			SDKZig        SDKType = "zig"
+			SDKRust       SDKType = "rust"
+		)
+
+		var validSDKs = map[SDKType]bool{
+			SDKPython:     true,
+			SDKGo:         false,
+			SDKTypeScript: false,
+			SDKZig:        false,
+			SDKRust:       false,
+		}
+
+		if *tgtSdk != "" {
+			if !validSDKs[SDKType(*tgtSdk)] {
+				fmt.Println(renderError(fmt.Sprintf("Invalid SDK: %s. Must be one of: python, go, typescript, zig, rust\n", *tgtSdk)))
+				os.Exit(1)
+			}
+
+		} else {
+			// Python detection
+			if _, err := os.Stat("./pyproject.toml"); !os.IsNotExist(err) {
+				*tgtSdk = "python"
+			} else if _, err := os.Stat("./requirements.txt"); !os.IsNotExist(err) {
+				*tgtSdk = "python"
+			} else if _, err := os.Stat("./setup.py"); !os.IsNotExist(err) {
+				*tgtSdk = "python"
+			} else if _, err := os.Stat("./setup.cfg"); !os.IsNotExist(err) {
+				*tgtSdk = "python"
+			} else if _, err := os.Stat("./Pipfile"); !os.IsNotExist(err) {
+				*tgtSdk = "python"
+				// 	// Go detection
+				// } else if _, err := os.Stat("./go.mod"); !os.IsNotExist(err) {
+				// 	*tgtSdk = "go"
+				//
+				// 	// TypeScript/JavaScript detection
+				// } else if _, err := os.Stat("./package.json"); !os.IsNotExist(err) {
+				// 	*tgtSdk = "typescript"
+				// } else if _, err := os.Stat("./tsconfig.json"); !os.IsNotExist(err) {
+				// 	*tgtSdk = "typescript"
+				//
+				// 	// Zig detection
+				// } else if _, err := os.Stat("./build.zig"); !os.IsNotExist(err) {
+				// 	*tgtSdk = "zig"
+				//
+				// 	// Rust detection
+				// } else if _, err := os.Stat("./Cargo.toml"); !os.IsNotExist(err) {
+				// 	*tgtSdk = "rust"
+			} else {
+				fmt.Println(renderError("Cannot infer language from environment. Specify it with the `sdk` command. Run `orca sync help` for more information"))
+				os.Exit(1)
+			}
+			fmt.Printf("Inferred sdk langauge as %v\n", *tgtSdk)
+		}
+
 		var connStr string
 		if *orcaConnStr == "" {
 			orcaStatus := getContainerStatus(orcaContainerName)
@@ -350,20 +417,50 @@ func main() {
 			connStr = *orcaConnStr
 		}
 
-		fmt.Println()
-		fmt.Printf("Generating registry data to %s...\n", *outDir)
+		fmt.Printf("Generating registry data to %s\n", *outDir)
 
 		if err := os.MkdirAll(*outDir, 0755); err != nil {
 			fmt.Println(renderError(fmt.Sprintf("Failed to create output directory: %v", err)))
 			os.Exit(1)
 		}
-		// TODO: add flag to make secure
-		conn, err := grpc.NewClient(connStr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		defer conn.Close()
+		var conn *grpc.ClientConn
+		var err error
+		var transportCreds credentials.TransportCredentials
+
+		if *caCert != "" {
+			// user provided a specific CA file
+			pemServerCA, err := os.ReadFile(*caCert)
+			if err != nil {
+				fmt.Println(renderError(fmt.Sprintf("Failed to read CA certificate: %v", err)))
+				os.Exit(1)
+			}
+
+			certPool := x509.NewCertPool()
+			if !certPool.AppendCertsFromPEM(pemServerCA) {
+				fmt.Println(renderError("Failed to add CA certificate to pool (invalid PEM format?)"))
+				os.Exit(1)
+			}
+
+			config := &tls.Config{
+				RootCAs: certPool,
+			}
+			transportCreds = credentials.NewTLS(config)
+			fmt.Println("Using custom CA certificate for TLS...")
+
+		} else if *secure {
+			// use system default certificates
+			transportCreds = credentials.NewTLS(&tls.Config{})
+			fmt.Println("Using system default CA for TLS...")
+		} else {
+			// insecure connection - good for accessing internal Orca service
+			transportCreds = insecure.NewCredentials()
+		}
+		conn, err = grpc.NewClient(connStr, grpc.WithTransportCredentials(transportCreds))
 		if err != nil {
 			fmt.Println(renderError(fmt.Sprintf("Issue preparing to contact Orca: %v", err)))
 			os.Exit(1)
 		}
+		defer conn.Close()
 
 		orcaCoreClient := pb.NewOrcaCoreClient(conn)
 		internalState, err := orcaCoreClient.Expose(context.Background(), &pb.ExposeSettings{})
@@ -385,6 +482,17 @@ func main() {
 		}
 
 		fmt.Println(renderSuccess(fmt.Sprintf("registry data generated successfully in %s", filepath.Join(*outDir, "registry.json"))))
+
+		switch SDKType(*tgtSdk) {
+		case SDKPython:
+			fmt.Printf("Generating python stubs to %s\n", *outDir)
+			err := stub.GeneratePythonStub(internalState, *outDir)
+			if err != nil {
+				fmt.Println(renderError(fmt.Sprintf("Issue generating python stubs: %s", err)))
+				os.Exit(1)
+			}
+			fmt.Println(renderSuccess(fmt.Sprintf("python stubs successfully generated in %s", *outDir)))
+		}
 
 	case "help":
 		fmt.Println()
