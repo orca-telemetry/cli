@@ -129,12 +129,11 @@ type Metadata struct {
 }
 
 type Window struct {
-	VarName          string
-	Name             string
-	Version          string
-	Description      string
-	MetadataKeyNames []string
-	MetadataVarNames []string
+	VarName     string
+	Name        string
+	Version     string
+	Description string
+	Metadata    []Metadata
 }
 
 type Algorithm struct {
@@ -178,8 +177,7 @@ func mapInternalStateToTmpl(internalState *pb.InternalState) (error, *AllProcess
 			windowVer := algo.GetWindowType().GetVersion()
 			windowKey := fmt.Sprintf("%v_%v", windowName, windowVer)
 
-			metadataVarNamesForWindow := make([]string, len(algo.GetWindowType().GetMetadataFields()))
-			metadataKeyNamesForWindow := make([]string, len(algo.GetWindowType().GetMetadataFields()))
+			metadataForWindow := make([]Metadata, len(algo.GetWindowType().GetMetadataFields()))
 			for kk, metadata := range algo.GetWindowType().GetMetadataFields() {
 				mName := metadata.GetName()
 
@@ -190,18 +188,20 @@ func mapInternalStateToTmpl(internalState *pb.InternalState) (error, *AllProcess
 						Description: metadata.GetDescription(),
 					}
 				}
-				metadataVarNamesForWindow[kk] = mName
-				metadataKeyNamesForWindow[kk] = mName
+				metadataForWindow[kk] = Metadata{
+					VarName:     mName,
+					KeyName:     mName,
+					Description: metadata.GetDescription(),
+				}
 			}
 
 			if _, ok := globalWindowsMap[windowKey]; !ok {
 				globalWindowsMap[windowKey] = Window{
-					VarName:          windowKey,
-					Name:             windowName,
-					Version:          windowVer,
-					Description:      algo.GetWindowType().GetDescription(),
-					MetadataVarNames: metadataVarNamesForWindow,
-					MetadataKeyNames: metadataKeyNamesForWindow,
+					VarName:     windowKey,
+					Name:        windowName,
+					Version:     windowVer,
+					Description: algo.GetWindowType().GetDescription(),
+					Metadata:    metadataForWindow,
 				}
 			}
 

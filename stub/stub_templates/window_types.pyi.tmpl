@@ -2,14 +2,16 @@ from orca_python import WindowType
 
 # --- Global Window Types ---
 {{ range .AllWindows -}}
-# METADATA: {"Name": "{{ .Name }}", "Version": "{{ .Version }}", "MetadataFields": [{{range $i, $v := .MetadataKeyNames}}{{if $i}},{{end}}"{{ $v }}"{{ end }}]}
+# METADATA: {"Name": "{{ .Name }}", "Version": "{{ .Version }}", "Description": "{{ .Description }}", "MetadataFields": [{{range $i, $v := .Metadata}}{{if $i}},{{end}}{"Name": "{{ $v.KeyName }}", "Description": "{{ $v.Description }}"}{{ end }}]}
 {{ .VarName | SanitiseVariableName }}: WindowType
 """
 {{ .Description | WrapText 72 | Indent 4 }}
-{{- if .MetadataKeyNames }}
+{{- if .Metadata }}
 
     Provides Metadata Fields:
-    [{{range $i, $v := .MetadataKeyNames}}{{if $i}},{{end}}"{{ $v }}"{{ end }}]
+{{- range .Metadata }}
+        - {{ .KeyName }}: {{ .Description }}
+{{- end }}
 {{- end }}
 """
 
