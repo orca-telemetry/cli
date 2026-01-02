@@ -4,6 +4,22 @@ set -e
 
 REPO="orc-analytics/cli"
 INSTALL_NAME="orca"
+USE_RC=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --rc)
+      USE_RC=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--rc]"
+      exit 1
+      ;;
+  esac
+done
 
 # Disallow root user
 if [ "$EUID" -eq 0 ]; then
@@ -11,16 +27,17 @@ if [ "$EUID" -eq 0 ]; then
   exit 1
 fi
 
-# Detect OS type
+# Detect OS type and architecture
 detect_os() {
   UNAME="$(uname -s)"
   ARCH="$(uname -m)"
   case "$UNAME" in
     Darwin)
+      OS="darwin"
       if [ "$ARCH" = "x86_64" ]; then
-        OS="mac-intel"
+        ARCH_NAME="amd64"
       elif [ "$ARCH" = "arm64" ]; then
-        OS="mac-arm"
+        ARCH_NAME="arm64"
       else
         echo "Unsupported Mac architecture: $ARCH"
         exit 1
@@ -28,9 +45,28 @@ detect_os() {
       ;;
     Linux)
       OS="linux"
+      if [ "$ARCH" = "x86_64" ]; then
+        ARCH_NAME="amd64"
+      elif [ "$ARCH" = "aarch64" ]; then
+        ARCH_NAME="arm64"
+      elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
+        ARCH_NAME="386"
+      else
+        echo "Unsupported Linux architecture: $ARCH"
+        exit 1
+      fi
       ;;
     MINGW*|MSYS*|CYGWIN*|Windows_NT)
       OS="windows"
+      if [ "$ARCH" = "x86_64" ]; then
+        ARCH_NAME="amd64"
+      elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
+        ARCH_NAME="386"
+      elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        ARCH_NAME="arm64"
+      else
+        ARCH_NAME="amd64"  # Default for Windows
+      fi
       ;;
     *)
       echo "Unsupported OS: $UNAME"
@@ -41,23 +77,54 @@ detect_os() {
 
 # Get latest release version from GitHub API
 get_latest_version() {
-  echo "Fetching latest Orca CLI version..."
-  LATEST_VERSION=$(curl -s https://api.github.com/repos/${REPO}/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
-  if [ -z "$LATEST_VERSION" ]; then
+  if [ "$USE_RC" = true ]; then
+    echo "Fetching latest Orca CLI release candidate..."
+    # Get all releases including pre-releases, filter for RC versions
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/${REPO}/releases | \
+      jq -r '[.[] | select(.prerelease == true) | .tag_name] | first')
+  else
+    echo "Fetching latest stable Orca CLI version..."
+    # Get latest stable release (non-prerelease)
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/${REPO}/releases | \
+      jq -r '[.[] | select(.prerelease == false) | .tag_name] | first')
+  fi
+  
+  if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "null" ]; then
     echo "Failed to retrieve latest version"
     exit 1
   fi
+  
+  # Remove 'v' prefix if present
+  LATEST_VERSION="${LATEST_VERSION#v}"
   echo "Latest version: $LATEST_VERSION"
 }
 
-# Download the appropriate binary
+# Download and extract the appropriate binary
 download_binary() {
-  BINARY_NAME="orca-cli-${OS}"
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_VERSION}/${BINARY_NAME}"
-  TMP_FILE="$(mktemp)"
+  ARCHIVE_NAME="CLI_${LATEST_VERSION}_${OS}_${ARCH_NAME}.tar.gz"
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/${ARCHIVE_NAME}"
+  TMP_DIR="$(mktemp -d)"
+  TMP_ARCHIVE="$TMP_DIR/archive.tar.gz"
+  
   echo "Downloading $DOWNLOAD_URL"
-  curl -L "$DOWNLOAD_URL" -o "$TMP_FILE"
-  chmod +x "$TMP_FILE"
+  if ! curl -fL "$DOWNLOAD_URL" -o "$TMP_ARCHIVE"; then
+    echo "Failed to download binary"
+    echo "URL attempted: $DOWNLOAD_URL"
+    rm -rf "$TMP_DIR"
+    exit 1
+  fi
+  
+  echo "Extracting archive..."
+  tar -xzf "$TMP_ARCHIVE" -C "$TMP_DIR"
+  
+  TMP_BINARY="$TMP_DIR/CLI"
+  if [ ! -f "$TMP_BINARY" ]; then
+    echo "Binary 'CLI' not found in archive"
+    rm -rf "$TMP_DIR"
+    exit 1
+  fi
+  
+  chmod +x "$TMP_BINARY"
 }
 
 # Determine writable install directories
@@ -85,6 +152,7 @@ find_install_dirs() {
 
   if [ -z "$SHARE_DIR" ] || [ -z "$BIN_DIR" ]; then
     echo "No writable share/bin directory found. Please add one or run with elevated permissions."
+    rm -rf "$TMP_DIR"
     exit 1
   fi
 }
@@ -96,14 +164,28 @@ install_binary() {
 
   rm -f "$SYMLINK_PATH"
 
-  mv "$TMP_FILE" "$FINAL_BINARY"
+  mv "$TMP_BINARY" "$FINAL_BINARY"
   chmod +x "$FINAL_BINARY"
   ln -sf "$FINAL_BINARY" "$SYMLINK_PATH"
+  
+  # Clean up temp directory
+  rm -rf "$TMP_DIR"
 
   echo ""
   echo "✅ Orca CLI installed to: $FINAL_BINARY"
   echo "✅ Symlink created at: $SYMLINK_PATH"
   echo "🔗 To get started, visit: https://github.com/orc-analytics/core#readme"
+  
+  # Verify installation
+  if command -v "$INSTALL_NAME" &> /dev/null; then
+    echo ""
+    echo "Installation verified. Run '$INSTALL_NAME --version' to confirm."
+  else
+    echo ""
+    echo "⚠️  Note: $BIN_DIR may not be in your PATH."
+    echo "   Add it to your PATH by adding this line to your shell config:"
+    echo "   export PATH=\"$BIN_DIR:\$PATH\""
+  fi
 }
 
 # Run install steps
@@ -112,4 +194,3 @@ get_latest_version
 download_binary
 find_install_dirs
 install_binary
-

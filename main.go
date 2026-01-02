@@ -20,7 +20,26 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// Version information - set during build with ldflags
+var (
+	Version   = "dev"
+	CommitSHA = "unknown"
+	BuildDate = "unknown"
+)
+
+func printVersion() {
+	fmt.Printf("Orca CLI version %s\n", Version)
+	if CommitSHA != "unknown" {
+		fmt.Printf("Commit: %s\n", CommitSHA)
+	}
+	if BuildDate != "unknown" {
+		fmt.Printf("Built: %s\n", BuildDate)
+	}
+}
+
 func main() {
+	flag.Bool("version", false, "Show version information")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Orca CLI\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
@@ -58,8 +77,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check for --version flag before parsing subcommandsA
+	if os.Args[1] == "--version" || os.Args[1] == "-v" {
+		printVersion()
+		os.Exit(0)
+	}
+
 	// parse the appropriate subcommand
 	switch os.Args[1] {
+
+	case "version":
+		printVersion()
+		os.Exit(0)
 
 	case "start":
 		startCmd.Usage = func() {
