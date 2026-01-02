@@ -35,27 +35,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
 
-dockers_v2:
-  - images:
-      - "ghcr.io/orc-analytics/cli"
-
-    tags:
-      - "{{ .Version }}"
-      - "{{ if not .Prerelease }}latest{{ end }}"
-
-    labels:
-      "org.opencontainers.image.created": "{{.Date}}"
-      "org.opencontainers.image.title": "{{.ProjectName}}"
-      "org.opencontainers.image.revision": "{{.FullCommit}}"
-      "org.opencontainers.image.version": "{{.Version}}"
-    
-    ids:
-      - cli
-
-    platforms:
-      - linux/amd64
-      - linux/arm64
-
 release:
   prerelease: auto
   name_template: "{{.ProjectName}} {{.Version}}"
