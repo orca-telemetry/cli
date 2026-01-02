@@ -35,7 +35,7 @@ archives:
   - id: cli-archive
     format: tar.gz
     name_template: >-
-      CLI_
+      CLI_v
       {{- .Version }}_
       {{- .Os }}_
       {{- if eq .Arch "amd64" }}amd64

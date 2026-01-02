@@ -102,7 +102,7 @@ get_latest_version() {
 # Download and extract the appropriate binary
 download_binary() {
   ARCHIVE_NAME="CLI_${LATEST_VERSION}_${OS}_${ARCH_NAME}.tar.gz"
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/${ARCHIVE_NAME}"
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_VERSION}/${ARCHIVE_NAME}"
   TMP_DIR="$(mktemp -d)"
   TMP_ARCHIVE="$TMP_DIR/archive.tar.gz"
   
