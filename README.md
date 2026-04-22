@@ -28,7 +28,7 @@ orca stop
 
 ## Documentation
 
-For complete documentation, including detailed command reference, configuration options, and troubleshooting, visit the [Orca CLI Documentation](https://orc-a.io/docs/cli).
+For complete documentation, including detailed command reference, configuration options, and troubleshooting, visit the [Orca CLI Documentation](https://www.orcatelemetry.io/docs/cli).
 
 ## Requirements
 
